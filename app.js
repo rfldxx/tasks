@@ -1,14 +1,25 @@
 export default function appSrc(express, bodyParser, createReadStream, crypto, http) {
+    // COMMENTED patch
     const app = express();
 
     app.use((req, res, next) => {
-        const origin = req.headers.origin || '*';
-        res.setHeader('Access-Control-Allow-Origin', origin);
+        console.log(`\n--- NEW REQUEST: ${req.method} ${req.url} ---`);
+        console.log('Origin:', req.headers.origin);
+        console.log('Requested Headers:', req.headers['access-control-request-headers']);
+
+        // Строго по заданию: Access-Control-Allow-Origin: *
+        res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,OPTIONS,DELETE');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        
+        // Разрешаем любые заголовки, которые просит браузер
+        res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || '*');
+
+        // ВАЖНО: Если Allow-Origin: *, то Allow-Credentials: true ломает CORS в браузере!
+        // Поэтому мы его НЕ ставим.
+
         if (req.method === 'OPTIONS') {
-            return res.sendStatus(204);
+            console.log('-> Responding to OPTIONS with 200');
+            return res.status(200).end(); // Отвечаем 200 и завершаем
         }
         next();
     });
@@ -20,7 +31,6 @@ export default function appSrc(express, bodyParser, createReadStream, crypto, ht
     app.get('/sha1/:input/', (req, res) => {
         res.send(crypto.createHash('sha1').update(req.params.input).digest('hex'));
     });
-
     
     function buffer_reader(call_on_end) {
         return (req, res) => {
@@ -36,18 +46,30 @@ export default function appSrc(express, bodyParser, createReadStream, crypto, ht
         (req1, res1, buffer1) => {
             const addr = req1.query.addr || decodeURIComponent(buffer1.slice(5));
             
-            http.get(addr, buffer_reader(
-                (req2, res2, buffer2) => {
-                    res1.send(buffer2);
-                }
-            ));
-
+            // ДОБАВЛЕН TRY/CATCH, чтобы сервер не падал при ошибке сети
+            try {
+                http.get(addr, buffer_reader(
+                    (req2, res2, buffer2) => {
+                        res1.send(buffer2);
+                    }
+                )).on('error', (e) => {
+                    res1.status(502).send('upstream error');
+                });
+            } catch (e) {
+                res1.status(502).send('invalid url');
+            }
         }
     ));
 
-    function my_default(req, res) { res.send('rfldxx'); }
-    app.get('/login/', my_default);
-    app.all('*',       my_default);
+    // Явно ставим text/plain для логина
+    app.get('/login/', (req, res) => {
+        res.type('text/plain').send('rfldxx');
+    });
+    
+    // Catch-all
+    app.all('*', (req, res) => {
+        res.type('text/plain').send('rfldxx');
+    });
 
     return app;
 }
