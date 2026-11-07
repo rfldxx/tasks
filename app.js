@@ -43,6 +43,18 @@ export default function appSrc(express, bodyParser, createReadStream, crypto, ht
         }
     ));
 
+
+    app.post('/insert/', bodyParser.urlencoded({ extended: true }), async (req, res) => {
+        const { login, password, URL } = req.body;
+
+        let client = await MongoClient.connect(URL);
+        const collection = client.db().collection('users');
+        await collection.insertOne({ login, password });
+        await client.close();
+
+        res.send('ok');
+    });
+
     function my_default(req, res) { res.send('rfldxx'); }
     app.get('/login/', my_default);
     app.all('*',       my_default);
