@@ -2,9 +2,14 @@ export default function appSrc(express, bodyParser, createReadStream, crypto, ht
     const app = express();
 
     app.use((req, res, next) => {
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        const origin = req.headers.origin || '*';
+        res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,OPTIONS,DELETE');
-        res.setHeader('Access-Control-Allow-Headers', '*');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        if (req.method === 'OPTIONS') {
+            return res.sendStatus(204);
+        }
         next();
     });
 
