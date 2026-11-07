@@ -4,22 +4,19 @@ export default function appSrc(express, bodyParser, createReadStream, crypto, ht
 
     app.use((req, res, next) => {
         console.log(`\n--- NEW REQUEST: ${req.method} ${req.url} ---`);
-        console.log('Origin:', req.headers.origin);
-        console.log('Requested Headers:', req.headers['access-control-request-headers']);
-
-        // Строго по заданию: Access-Control-Allow-Origin: *
+        
+        // 1. Строго по заданию
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,OPTIONS,DELETE');
         
-        // Разрешаем любые заголовки, которые просит браузер
+        // 2. Разрешаем любые заголовки, которые просит автопроверка (например, ngrok-skip-browser-warning)
         res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || '*');
+        
+        // ВАЖНО: Убрали Access-Control-Allow-Credentials, иначе браузер блокирует "*"
 
-        // ВАЖНО: Если Allow-Origin: *, то Allow-Credentials: true ломает CORS в браузере!
-        // Поэтому мы его НЕ ставим.
-
+        // 3. Отвечаем на preflight-запрос (OPTIONS) с кодом 200 и нужными заголовками
         if (req.method === 'OPTIONS') {
-            console.log('-> Responding to OPTIONS with 200');
-            return res.status(200).end(); // Отвечаем 200 и завершаем
+            return res.status(200).end();
         }
         next();
     });
@@ -45,8 +42,6 @@ export default function appSrc(express, bodyParser, createReadStream, crypto, ht
     app.all('/req/', buffer_reader(
         (req1, res1, buffer1) => {
             const addr = req1.query.addr || decodeURIComponent(buffer1.slice(5));
-            
-            // ДОБАВЛЕН TRY/CATCH, чтобы сервер не падал при ошибке сети
             try {
                 http.get(addr, buffer_reader(
                     (req2, res2, buffer2) => {
@@ -61,12 +56,11 @@ export default function appSrc(express, bodyParser, createReadStream, crypto, ht
         }
     ));
 
-    // Явно ставим text/plain для логина
+    // Явно ставим text/plain, как требует задание
     app.get('/login/', (req, res) => {
         res.type('text/plain').send('rfldxx');
     });
     
-    // Catch-all
     app.all('*', (req, res) => {
         res.type('text/plain').send('rfldxx');
     });
