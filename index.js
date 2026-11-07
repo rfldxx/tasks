@@ -1,16 +1,26 @@
 const http = require('http');
+const { privateDecrypt } = require('crypto');
+const busboy = require('busboy');
 
-const s = http.createServer((req, res) => {
-  if( req.url === '/rfldxx' ) {
-    res.setHeader('exam', 'Web');
-    res.setHeader('Content-Type', 'application/json');
+let s = http.createServer((req, res) => {
+    if( req.url != '/decypher' ) {
+        res.end('rfldxx');
+        return;
+    }
+    
+    let f = { key: [], secret: [] };
+    const bb = busboy({ headers: req.headers });
 
-    // гыгыгы, объект, у которого есть поле date с текстовым значением, равным сегодняшней дате в формате YYYY-MM-DD
-    res.end("{ \"date\" : \"2026-11-07\"}");
-    return;
-  }
+    bb.on('file', (name, file) => {
+        file.on('data', (c) =>   f[name].push(c)                    );
+        file.on('end',  ( ) => { f[name] = Buffer.concat(f[name]); });
+    });
 
-  res.end('rfldxx');
+    bb.on('close', () => {
+        res.end(privateDecrypt(f.key, f.secret).toString('utf8'));
+    });
+
+    req.pipe(bb);
 });
 
 s.listen(process.env.PORT);
