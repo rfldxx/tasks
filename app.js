@@ -1,18 +1,14 @@
-export default function appSrc(express, crypto, db_collection) {
+export default function appSrc(express, crypto, db_collection, my_login, my_full_name) {
     const app = express();
-
-    const LOGIN = 'rfldxx';
-    const FULL_NAME = '...';
 
     app.use((req, res, next) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Accept,Access-ControlAllow-Headers');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Accept,Access-ControlAllow-Headers,Authorization');
         next();
     });
 
-
-    app.get('/login/', (req, res) => { res.type('text/plain').send(LOGIN); });
+    app.get('/login/', (req, res) => { res.type('text/plain').send(my_login); });
     
     
     // Безопасное сравнение (время сравнения постоянное, а не сразу "прерывается" на первом несовпадении)
@@ -21,7 +17,6 @@ export default function appSrc(express, crypto, db_collection) {
         const b = Buffer.from(String(expected));
         return a.length == b.length && crypto.timingSafeEqual(a, b);
     }
-    
     
     // Все /api/ требуют Authorization: Bearer <токен>; без правильного токена - 401
     app.use('/api', (req, res, next) => {
@@ -32,8 +27,7 @@ export default function appSrc(express, crypto, db_collection) {
         next();
     });
 
-    app.get('/api/author/', (req, res) => { res.json({ login: LOGIN, fullName: FULL_NAME }); });
-
+    app.get('/api/author/', (req, res) => { res.json({ login: my_login, fullName: my_full_name }); });
 
 
 
@@ -44,9 +38,7 @@ export default function appSrc(express, crypto, db_collection) {
         'done' : (val) => typeof val === 'boolean'
     };
 
-
-    // делаем функцию возвращающую middleware (по типу express.json())
-    // топовая функция получилась!
+    // Создание функции возвращающей middleware проверку аргументов (по типу express.json())
     function CheckFields(property, requiredFields = [], allowedFields = requiredFields, validators = FieldValidators) {
         // allowedFields должно содержать в себе requiredFields
         return (req, res, next) => {
@@ -81,19 +73,28 @@ export default function appSrc(express, crypto, db_collection) {
     }
 
 
+    function extractPublicFields(obj) {
+        const extractedFields = ['id', 'ownerLogin', 'title', 'done', 'runId', 'createdAt'];
+        const result = {};
+        for(const field of extractedFields) result[field] = obj[field];
+        return result;
+    }
+
+
+
     app.use(express.json());
 
     // POST /api/tasks/ JSON: title, runId. Ответ 201 и созданное дело
     app.post('/api/tasks/', CheckFields('body', ['title', 'runId']), async (req, res) => {
-        req.body.id = crypto.randomUUID();
-        req.body.ownerLogin = LOGIN;
-        req.body.done = false;
-        req.body.title = req.body.title.trim();
-        req.body.createdAt = new Date().toISOString();
+        req.body.id         = crypto.randomUUID();
+        req.body.ownerLogin = my_login;
+        req.body.done       = false;
+        req.body.title      = req.body.title.trim();
+        req.body.createdAt  = new Date().toISOString();
         try {
             await db_collection.insertOne(req.body);
-            res.status(201).json(req.body);
-        } catch (e) {
+            res.status(201).json(extractPublicFields(req.body));
+        } catch( e ) {
             res.status(503).json({ error: "Database error" });
         }
     });
@@ -101,25 +102,69 @@ export default function appSrc(express, crypto, db_collection) {
 
     // GET /api/tasks/?runId=... 200; JSON-массив дел автора с этим runId; пустой результат - [].
     app.get('/api/tasks/', CheckFields('query', ['runId']), async (req, res) => {
+        try {
+            const db_result = await db_collection.find(
+                { ownerLogin: my_login, runId: req.query.runId }
+            ).toArray();
 
+            res.json( db_result.map(extractPublicFields) );
+        } catch( e ) {
+            res.status(503).json({ error: "Database error" });
+        }
     });
+
 
     // GET /api/tasks/:id/ 200 и дело; отсутствующее дело - 404.
     app.get('/api/tasks/:id/', CheckFields('params', ['id']), async (req, res) => {
+        try {
+            const task = await db_collection.findOne(
+                { id: req.params.id, ownerLogin: my_login }
+            );
 
+            if( !task ) return res.status(404).json({ error: "Task not found" });
+            res.json( extractPublicFields(task) );
+        } catch( e ) {
+            res.status(503).json({ error: "Database error" });
+        }
     });
+
 
     // PATCH /api/tasks/:id/ JSON: title и/или done. Ответ 200 и обновленное дело; отсутствующее - 404.
-    app.patch('/api/tasks/:id/', CheckFields('body', [], ['title', 'done']), CheckFields('params', ['id']), async (req, res) => {
+    app.patch('/api/tasks/:id/', CheckFields('params', ['id']), CheckFields('body', [], ['title', 'done']), async (req, res) => {
+        try {
+            if( req.body.title !== undefined ) req.body.title = req.body.title.trim();
+    
+            const result = await db_collection.findOneAndUpdate(
+                { id: req.params.id, ownerLogin: my_login },
+                { $set: req.body },
+                { returnDocument: 'after' }
+            );
 
+            if( !result ) return res.status(404).json({ error: "Task not found" });
+            res.json( extractPublicFields(result) );
+        } catch (e) {
+            res.status(503).json({ error: "Database error" });
+        }
     });
+
 
     // DELETE /api/tasks/:id/ 204 без тела; отсутствующее дело - 404
     app.delete('/api/tasks/:id/', CheckFields('params', ['id']), async (req, res) => {
-
+        try {
+            const result = await db_collection.deleteOne(
+                { id: req.params.id, ownerLogin: my_login }
+            );
+            
+            if (result.deletedCount === 0) {
+                return res.status(404).json({ error: "Task not found" });
+            }
+            res.status(204).end();
+        } catch (e) {
+            res.status(503).json({ error: "Database error" });
+        }
     });
 
-   
+    
     app.use((err, req, res, next) => {
         if( err.type === 'entity.parse.failed' ) {
             return res.status(400).json({ error: "Invalid JSON format" });
