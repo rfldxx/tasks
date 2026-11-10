@@ -149,7 +149,7 @@ export default function appSrc(express, crypto, db_collection, bearer_token, my_
             { returnDocument: 'after' }
         );
 
-        if( !result && !result.value ) return res.status(404).json({ error: "Task not found" });
+        if( !result || !result.value ) return res.status(404).json({ error: "Task not found" });
         res.json( extractPublicFields(result.value) );
     }));
 
