@@ -1,5 +1,7 @@
-export default function appSrc(express, crypto, db_collection, my_login, my_full_name) {
+export default function appSrc(express, crypto, db_collection, bearer_token, my_login, my_full_name) {
     const app = express();
+
+    app.use(express.static('public'));
 
     app.use((req, res, next) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -21,13 +23,14 @@ export default function appSrc(express, crypto, db_collection, my_login, my_full
     // Все /api/ требуют Authorization: Bearer <токен>; без правильного токена - 401
     app.use('/api', (req, res, next) => {
         const { authorization } = req.headers;
-        if( !authorization || !tokenMatches(authorization, `Bearer ${process.env.BEARER_TOKEN}`) ) {
+        if( !authorization || !tokenMatches(authorization, `Bearer ${bearer_token}`) ) {
             return res.status(401).json({ error: "Unauthorized" });
         }
         next();
     });
 
     app.get('/api/author/', (req, res) => { res.json({ login: my_login, fullName: my_full_name }); });
+
 
 
 
@@ -72,13 +75,13 @@ export default function appSrc(express, crypto, db_collection, my_login, my_full
         }
     }
 
-
     function extractPublicFields(obj) {
         const extractedFields = ['id', 'ownerLogin', 'title', 'done', 'runId', 'createdAt'];
         const result = {};
         for(const field of extractedFields) result[field] = obj[field];
         return result;
     }
+
 
 
 
@@ -114,6 +117,17 @@ export default function appSrc(express, crypto, db_collection, my_login, my_full
     });
 
 
+    // ИЗМЕНЕНИЯ: новый запрос получить все уникальные runId автора
+    app.get('/api/tasks/runids/', async (req, res) => {
+        try {
+            const runIds = await db_collection.distinct('runId', { ownerLogin: my_login });
+            res.json(runIds);
+        } catch( e ) {
+            res.status(503).json({ error: "Database error" });
+        }
+    });
+
+
     // GET /api/tasks/:id/ 200 и дело; отсутствующее дело - 404.
     app.get('/api/tasks/:id/', CheckFields('params', ['id']), async (req, res) => {
         try {
@@ -129,8 +143,9 @@ export default function appSrc(express, crypto, db_collection, my_login, my_full
     });
 
 
+    // ИЗМЕНЕНИЯ: можно менять и/или поле 'runId'
     // PATCH /api/tasks/:id/ JSON: title и/или done. Ответ 200 и обновленное дело; отсутствующее - 404.
-    app.patch('/api/tasks/:id/', CheckFields('params', ['id']), CheckFields('body', [], ['title', 'done']), async (req, res) => {
+    app.patch('/api/tasks/:id/', CheckFields('params', ['id']), CheckFields('body', [], ['title', 'done', 'runId']), async (req, res) => {
         try {
             if( req.body.title !== undefined ) req.body.title = req.body.title.trim();
     
@@ -142,7 +157,7 @@ export default function appSrc(express, crypto, db_collection, my_login, my_full
 
             if( !result ) return res.status(404).json({ error: "Task not found" });
             res.json( extractPublicFields(result) );
-        } catch (e) {
+        } catch( e ) {
             res.status(503).json({ error: "Database error" });
         }
     });
@@ -159,7 +174,7 @@ export default function appSrc(express, crypto, db_collection, my_login, my_full
                 return res.status(404).json({ error: "Task not found" });
             }
             res.status(204).end();
-        } catch (e) {
+        } catch( e ) {
             res.status(503).json({ error: "Database error" });
         }
     });
