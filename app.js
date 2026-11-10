@@ -105,8 +105,8 @@ export default function appSrc(express, crypto, db_collection, bearer_token, my_
         req.body.done       = false;
         req.body.title      = req.body.title.trim();
         req.body.createdAt  = new Date().toISOString();
-            await db_collection.insertOne(req.body);
-            res.status(201).json(extractPublicFields(req.body));
+        await db_collection.insertOne(req.body);
+        res.status(201).json(extractPublicFields(req.body));
     }));
 
 
