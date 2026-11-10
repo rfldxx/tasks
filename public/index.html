@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>todo</title>
+</head>
+<body>
+    <!-- Блок авторизации -->
+    <div id="auth-section">
+        <div>
+            <label>Введите API Токен:</label><br>
+            <input type="text" id="token-input">
+            <button id="login-btn">Войти</button>
+        </div>
+        <p id="auth-error" style="color: red;"></p>
+    </div>
+
+    <!-- "Сайт" -->
+    <div id="main-section" hidden>
+        <div id="author-display"></div>
+        <hr>
+
+        <!-- Форма добавления -->
+        <div>
+            <label>Новая задача:</label><br>
+            <input type="text" id="task-title"> 
+            <input type="text" id="task-runid">
+            <button id="add-btn">Добавить задачу</button>
+        </div>
+        <p id="task-error" style="color: red;"></p>
+
+        <br>
+
+        <!-- Блок фильтров -->
+        <fieldset>
+            <legend>Фильтры по категориям (runId):</legend>
+            <div id="runid-filters"></div>
+            <div style="margin-top: 10px;">
+                <button id="load-btn">Обновить</button>
+                <button id="show-all-btn">Показать все</button>
+            </div>
+        </fieldset>
+
+        <br>
+
+        <!-- Таблица задач -->
+        <table border="1" cellpadding="5" cellspacing="0" style="text-align: left;">
+            <thead>
+                <tr>
+                    <!-- Жестко сжимаем колонку "статуса" -->
+                    <th style="width: 1%; white-space: nowrap;">
+                        <!-- Невидимый чекбокс чтобы ширина потом не менялась -->
+                        <input type="checkbox" style="visibility: hidden; margin: 0;">
+                    </th>
+                    
+                    <th style="width: 1%; white-space: nowrap;">Категория</th>
+                    
+                    <th>Задача</th>
+                    
+                    <th style="width: 1%; white-space: nowrap;">
+                        Действия
+                        <!-- Невидимый контейнер для точной ширины колонки -->
+                        <div style="visibility: hidden; height: 0; overflow: hidden; white-space: nowrap; text-align: left;">
+                            <button>Редактировать</button>
+                        </div>
+                    </th>
+                </tr>
+            </thead>
+            <tbody id="task-list"></tbody>
+        </table>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
