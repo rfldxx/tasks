@@ -156,7 +156,7 @@ export default function appSrc(express, crypto, db_collection, bearer_token, my_
             );
 
             if( !result ) return res.status(404).json({ error: "Task not found" });
-            res.json( extractPublicFields(result) );
+            res.json( extractPublicFields(result.value) );
         } catch( e ) {
             res.status(503).json({ error: "Database error" });
         }
