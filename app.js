@@ -91,7 +91,7 @@ export default function appSrc(express, crypto, db_collection, bearer_token, my_
     function wrapTryCatch(f) {
         return async (req, res) => {
             try {
-                await f();
+                await f(req, res);
             } catch (err) {
                 res.status(503).json({ error: "Database error" });
             }
